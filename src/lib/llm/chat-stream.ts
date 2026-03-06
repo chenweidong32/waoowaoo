@@ -142,11 +142,24 @@ export async function chatCompletionStream(
       let text = ''
       let reasoning = ''
       let lastChunk: unknown = null
+      let chunkCount = 0
       for await (const chunk of withStreamChunkTimeout(streamIterable)) {
         lastChunk = chunk
+        chunkCount += 1
         const chunkParts = extractGoogleParts(chunk)
 
-        let reasoningDelta = chunkParts.reasoning
+        // 如果 extractGoogleParts 未提取到 text，尝试使用 SDK 的 .text 访问器
+        // @google/genai v1.x 的 GenerateContentResponse 类提供 .text getter
+        let chunkText = chunkParts.text
+        const chunkReasoning = chunkParts.reasoning
+        if (!chunkText && !chunkReasoning) {
+          const sdkChunk = chunk as { text?: string; candidates?: unknown[] }
+          if (typeof sdkChunk.text === 'string' && sdkChunk.text) {
+            chunkText = sdkChunk.text
+          }
+        }
+
+        let reasoningDelta = chunkReasoning
         if (reasoningDelta && reasoning && reasoningDelta.startsWith(reasoning)) {
           reasoningDelta = reasoningDelta.slice(reasoning.length)
         }
@@ -161,7 +174,7 @@ export async function chatCompletionStream(
           seq += 1
         }
 
-        let textDelta = chunkParts.text
+        let textDelta = chunkText
         if (textDelta && text && textDelta.startsWith(text)) {
           textDelta = textDelta.slice(text.length)
         }
@@ -178,8 +191,42 @@ export async function chatCompletionStream(
       }
 
       const usage = extractGoogleUsage(lastChunk)
-      // 如果流式传输结束后 text 仍然为空，抛出可重试错误
+      // 如果流式传输结束后 text 仍然为空，尝试最后的后备方案
       if (!text) {
+        // 尝试从最后一个 chunk 的 SDK .text 访问器获取完整文本
+        const lastSdkChunk = lastChunk as { text?: string } | null
+        if (lastSdkChunk && typeof lastSdkChunk.text === 'string' && lastSdkChunk.text) {
+          text = lastSdkChunk.text
+          emitStreamChunk(callbacks, streamStep, {
+            kind: 'text',
+            delta: text,
+            seq,
+            lane: 'main',
+          })
+          seq += 1
+        }
+      }
+      if (!text) {
+        // 诊断日志：记录最后一个 chunk 的结构以便排查
+        const chunkKeys = lastChunk && typeof lastChunk === 'object' ? Object.keys(lastChunk) : []
+        const chunkProto = lastChunk && typeof lastChunk === 'object' ? Object.getPrototypeOf(lastChunk)?.constructor?.name : 'unknown'
+        llmLogger.warn({
+          audit: false,
+          action: 'llm.google_stream.empty_response',
+          message: '[LLM] Google stream ended with empty text',
+          userId,
+          projectId,
+          provider: providerKey,
+          details: {
+            model: resolvedModelId,
+            action: options.action ?? null,
+            chunkCount,
+            chunkKeys,
+            chunkConstructor: chunkProto,
+            reasoningLength: reasoning.length,
+            lastChunkSample: lastChunk ? JSON.stringify(lastChunk).slice(0, 2000) : null,
+          },
+        })
         throw new GoogleEmptyResponseError('stream_empty')
       }
       const completion = buildOpenAIChatCompletion(

@@ -266,6 +266,17 @@ export function resolveGenerationOptionsForModel(input: {
     return { options: { ...selection }, issues: [] }
   }
 
+  // 当 requireAllFields 时，自动填充缺失字段的第一个可选值作为默认值
+  // 避免用户未在设置中配置 resolution 等字段时直接报错
+  if (input.requireAllFields ?? true) {
+    const optionFields = getCapabilityOptionFields(input.modelType, input.capabilities)
+    for (const [field, allowedValues] of Object.entries(optionFields)) {
+      if (selection[field] === undefined && allowedValues.length > 0) {
+        selection[field] = allowedValues[0]
+      }
+    }
+  }
+
   const issues = validateCapabilitySelectionForModel({
     modelKey: input.modelKey,
     modelType: input.modelType,

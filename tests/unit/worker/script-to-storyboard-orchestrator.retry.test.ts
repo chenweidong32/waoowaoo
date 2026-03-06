@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { runScriptToStoryboardOrchestrator } from '@/lib/novel-promotion/script-to-storyboard/orchestrator'
+import { TaskTerminatedError } from '@/lib/task/errors'
 
 describe('script-to-storyboard orchestrator retry', () => {
   afterEach(() => {
@@ -100,6 +101,41 @@ describe('script-to-storyboard orchestrator retry', () => {
         runStep,
       }),
     ).rejects.toThrow('SENSITIVE_CONTENT')
+
+    expect(callCount).toBe(1)
+  })
+
+  it('does not retry TaskTerminatedError', async () => {
+    let callCount = 0
+    const runStep = vi.fn(async () => {
+      callCount += 1
+      throw new TaskTerminatedError('task-123', 'Task terminated during script_to_storyboard_step:clip_1_phase1')
+    })
+
+    await expect(
+      runScriptToStoryboardOrchestrator({
+        clips: [
+          {
+            id: 'clip-1',
+            content: '文本',
+            characters: JSON.stringify([{ name: '角色A' }]),
+            location: '场景A',
+            screenplay: null,
+          },
+        ],
+        novelPromotionData: {
+          characters: [{ name: '角色A', appearances: [] }],
+          locations: [{ name: '场景A', images: [] }],
+        },
+        promptTemplates: {
+          phase1PlanTemplate: '{clip_content} {clip_json} {characters_lib_name} {locations_lib_name} {characters_introduction} {characters_appearance_list} {characters_full_description}',
+          phase2CinematographyTemplate: '{panels_json} {panel_count} {locations_description} {characters_info}',
+          phase2ActingTemplate: '{panels_json} {panel_count} {characters_info}',
+          phase3DetailTemplate: '{panels_json} {characters_age_gender} {locations_description}',
+        },
+        runStep,
+      }),
+    ).rejects.toThrow(TaskTerminatedError)
 
     expect(callCount).toBe(1)
   })

@@ -1,5 +1,6 @@
 import { buildCharactersIntroduction } from '@/lib/constants'
 import { normalizeAnyError } from '@/lib/errors/normalize'
+import { TaskTerminatedError } from '@/lib/task/errors'
 import { createScopedLogger } from '@/lib/logging/core'
 import {
   type ActingDirection,
@@ -224,6 +225,10 @@ async function runStepWithRetry<T>(
       const parsed = parse(output.text)
       return { output, parsed }
     } catch (error) {
+      // 任务已被终止，立即停止重试
+      if (error instanceof TaskTerminatedError) {
+        throw error
+      }
       lastError = error instanceof Error ? error : new Error(String(error))
       const normalizedError = normalizeAnyError(error, { context: 'worker' })
       const shouldRetry = attempt < MAX_STEP_ATTEMPTS
