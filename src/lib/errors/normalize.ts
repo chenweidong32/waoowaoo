@@ -73,6 +73,7 @@ function inferCodeFromMessage(message: string): UnifiedErrorCode | null {
   if (containsAny(message, ['insufficient balance', 'creditinsufficient', 'balance is not enough', '402', 'insufficient credits', '余额不足', '余额不够', '请充值'])) return 'INSUFFICIENT_BALANCE'
   if (containsAny(message, ['sensitive', 'unsafe', 'safety', 'blocked', 'prohibited', 'policy_violation', 'moderation', 'harm', '敏感', '违规', '不当']) && !containsAny(message, ['case-sensitive', 'case sensitive'])) return 'SENSITIVE_CONTENT'
   if (containsAny(message, ['timeout', 'timed out', 'deadline exceeded'])) return 'GENERATION_TIMEOUT'
+  if (containsAny(message, ['empty response', 'stream_empty', 'no meaningful content', '空文本响应'])) return 'EMPTY_RESPONSE'
   if (containsAny(message, ['503', 'unavailable', 'overloaded', 'upstream error'])) return 'EXTERNAL_ERROR'
   if (containsAny(message, ['network', 'fetch failed', 'econnreset', 'enotfound', 'econnrefused', 'eai_again', 'terminated', 'aborted', 'socket hang up'])) return 'NETWORK_ERROR'
   if (containsAny(message, ['conflict', 'already exists', 'duplicate'])) return 'CONFLICT'

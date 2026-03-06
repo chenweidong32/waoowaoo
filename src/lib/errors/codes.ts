@@ -87,6 +87,13 @@ export const ERROR_CATALOG = {
     userMessageKey: 'errors.EXTERNAL_ERROR',
     defaultMessage: 'External service failed',
   },
+  EMPTY_RESPONSE: {
+    httpStatus: 502,
+    retryable: true,
+    category: ERROR_CATEGORY.PROVIDER,
+    userMessageKey: 'errors.EMPTY_RESPONSE',
+    defaultMessage: 'AI provider returned empty response',
+  },
   NETWORK_ERROR: {
     httpStatus: 502,
     retryable: true,
